@@ -393,6 +393,21 @@ return [
                     'setPassword' => ['%mautic.mailer_password%'],
                 ],
             ],
+            'mautic.transport.amazon_api' => [
+                'class'        => 'Mautic\EmailBundle\Swiftmailer\Transport\AmazonApiTransport',
+                'serviceAlias' => 'swiftmailer.mailer.transport.%s',
+                'arguments'    => [
+                    'mautic.http.connector',
+                    'monolog.logger.mautic',
+                    'translator',
+                    'mautic.email.model.transport_callback',
+                ],
+                'methodCalls' => [
+                    'setUsername' => ['%mautic.mailer_user%'],
+                    'setPassword' => ['%mautic.mailer_password%'],
+                    'setRegion'   => ['%mautic.mailer_amazon_api_region%'],
+                ],
+            ],
             'mautic.transport.mandrill' => [
                 'class'        => 'Mautic\EmailBundle\Swiftmailer\Transport\MandrillTransport',
                 'serviceAlias' => 'swiftmailer.mailer.transport.%s',
