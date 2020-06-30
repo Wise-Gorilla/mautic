@@ -21,6 +21,7 @@ use bandwidthThrottle\tokenBucket\Rate;
 use bandwidthThrottle\tokenBucket\storage\SingleProcessStorage;
 use bandwidthThrottle\tokenBucket\storage\StorageException;
 use bandwidthThrottle\tokenBucket\TokenBucket;
+use Exception;
 use Joomla\Http\Exception\UnexpectedResponseException;
 use Joomla\Http\Http;
 use Mautic\EmailBundle\Model\TransportCallback;
@@ -109,11 +110,6 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
 
     /**
      * AmazonApiTransport constructor.
-     *
-     * @param Http                $httpClient
-     * @param LoggerInterface     $logger
-     * @param TranslatorInterface $translator
-     * @param TransportCallback   $transportCallback
      */
     public function __construct(Http $httpClient, LoggerInterface $logger, TranslatorInterface $translator, TransportCallback $transportCallback)
     {
@@ -187,7 +183,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
      * SES authorization and choice of region
      * Initializing of TokenBucket.
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function start()
     {
@@ -214,7 +210,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
 
             if ($emailQuotaRemaining <= 0) {
                 $this->logger->error('Your AWS SES quota is currently exceeded, used '.$quota->get('SentLast24Hours').' of '.$quota->get('Max24HourSend'));
-                throw new \Exception('Your AWS SES quota is currently exceeded');
+                throw new Exception('Your AWS SES quota is currently exceeded');
             }
 
             /*
@@ -227,8 +223,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
     }
 
     /**
-     * @param \Swift_Mime_SimpleMessage $message
-     * @param null                $failedRecipients
+     * @param null $failedRecipients
      *
      * @return int count of recipients
      */
@@ -286,8 +281,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
     }
 
     /**
-     * @param \Swift_Events_SendEvent $evt
-     * @param array                   $failedRecipients
+     * @param array $failedRecipients
      */
     private function triggerSendError(\Swift_Events_SendEvent $evt, &$failedRecipients)
     {
@@ -308,7 +302,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
     /**
      * Initialize the token buckets for throttling.
      *
-     * @throws \Exception
+     * @throws Exception
      */
     private function initializeThrottles()
     {
@@ -332,10 +326,10 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
             $bucketSend->bootstrap($this->concurrency);
         } catch (\InvalidArgumentException $e) {
             $this->logger->error('error configuring token buckets: '.$e->getMessage());
-            throw new \Exception($e->getMessage());
+            throw new Exception($e->getMessage());
         } catch (StorageException $e) {
             $this->logger->error('error bootstrapping token buckets: '.$e->getMessage());
-            throw new \Exception($e->getMessage());
+            throw new Exception($e->getMessage());
         } catch (Exception $e) {
             $this->logger->error('error initializing token buckets: '.$e->getMessage());
             throw $e;
@@ -347,7 +341,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
      *
      * @return \Aws\Result
      *
-     * @throws \Exception
+     * @throws Exception
      *
      * @see https://docs.aws.amazon.com/ses/latest/APIReference/API_GetSendQuota.html
      */
@@ -358,7 +352,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
             return $this->client->getSendQuota();
         } catch (AwsException $e) {
             $this->logger->error('Error retrieving AWS SES quota info: '.$e->getMessage());
-            throw new \Exception($e->getMessage());
+            throw new Exception($e->getMessage());
         }
     }
 
@@ -367,7 +361,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
      *
      * @return \Aws\Result|null
      *
-     * @throws \Exception
+     * @throws Exception
      *
      * @see https://docs.aws.amazon.com/ses/latest/APIReference/API_CreateTemplate.html
      */
@@ -380,7 +374,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
         /*
          * reuse an existing template if we have created one
          */
-        if (array_search($templateName, $this->templateCache) !== false) {
+        if (false !== array_search($templateName, $this->templateCache)) {
             $this->logger->debug('Template '.$templateName.' already exists in cache');
 
             return null;
@@ -400,7 +394,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
                     break;
                 default:
                     $this->logger->error('Exception creating template: '.$templateName.', '.$e->getAwsErrorCode().', '.$e->getAwsErrorMessage());
-                    throw new \Exception($e->getMessage());
+                    throw new Exception($e->getMessage());
             }
         }
 
@@ -417,7 +411,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
      *
      * @return \Aws\Result
      *
-     * @throws \Exception
+     * @throws Exception
      *
      * @see https://docs.aws.amazon.com/ses/latest/APIReference/API_DeleteTemplate.html
      */
@@ -429,7 +423,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
             return $this->client->deleteTemplate(['TemplateName' => $templateName]);
         } catch (AwsException $e) {
             $this->logger->error('Exception deleting template: '.$templateName.', '.$e->getAwsErrorCode().', '.$e->getAwsErrorMessage());
-            throw new \Exception($e->getMessage());
+            throw new Exception($e->getMessage());
         }
     }
 
@@ -439,7 +433,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
      *
      * @return \Aws\Result
      *
-     * @throws \Exception
+     * @throws Exception
      *
      * @see https://docs.aws.amazon.com/ses/latest/APIReference/API_SendBulkTemplatedEmail.html
      */
@@ -454,14 +448,12 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
             return $this->client->sendBulkTemplatedEmail($message);
         } catch (AwsException $e) {
             $this->logger->error('Exception sending email template: '.$e->getAwsErrorCode().', '.$e->getAwsErrorMessage());
-            throw new \Exception($e->getMessage());
+            throw new Exception($e->getMessage());
         }
     }
 
     /**
      * Parse message into a template and recipients with their respective replacement tokens.
-     *
-     * @param \Swift_Mime_SimpleMessage $message
      *
      * @return array of a template and a message
      */
@@ -530,7 +522,6 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
             ];
         }
 
-
         //build amazon ses message array
         $amazonMessage = [
             'ConfigurationSetName' => $ConfigurationSetName,
@@ -542,9 +533,9 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
             'Template'             => $amazonTemplate['TemplateName'],
         ];
 
-        error_log(print_r($messageArray,true));
+        error_log(print_r($messageArray, true));
 
-        if (isset($messageArray['from']['name']) && trim($messageArray['from']['name']) !== '') {
+        if (isset($messageArray['from']['name']) && '' !== trim($messageArray['from']['name'])) {
             $amazonMessage['Source'] = '"'.$messageArray['from']['name'].'" <'.$messageArray['from']['email'].'>';
         }
 
@@ -552,7 +543,6 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
     }
 
     /**
-     * @param \Swift_Mime_SimpleMessage $message
      * @param \Swift_Events_SendEvent @evt
      * @param null $failedRecipients
      *
@@ -583,7 +573,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
             $promise->wait();
 
             return count($commands);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->triggerSendError($evt, $failedRecipients);
             $message->generateId();
             $this->throwException($e->getMessage());
@@ -593,8 +583,6 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
     }
 
     /**
-     * @param \Swift_Mime_SimpleMessage $message
-     *
      * @return array
      */
     public function getAmazonMessage(\Swift_Mime_SimpleMessage $message)
@@ -648,7 +636,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
         $message .= "Content-Type: multipart/mixed; boundary=\"$separator_multipart\"\n";
         if (isset($msg['headers'])) {
             foreach ($msg['headers'] as $key => $value) {
-                $message .= "$key: " . $value . "\n";
+                $message .= "$key: ".$value."\n";
             }
         }
         $message .= "\n--$separator_multipart\n";
@@ -673,9 +661,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
             $message .= "\n".$attachment['content']."\n";
         }
 
-        $message .= "--$separator_multipart--";
-
-        return $message;
+        return $message."--$separator_multipart--";
     }
 
     /**
@@ -697,39 +683,36 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
     }
 
     /**
-     * @param \Swift_Message $message
-     * @param int            $toBeAdded
-     * @param string         $type
+     * @param int    $toBeAdded
+     * @param string $type
      *
      * @return int
      */
     public function getBatchRecipientCount(\Swift_Message $message, $toBeAdded = 1, $type = 'to')
-	{
-    if ($message->getTo()) {
-      $getTo = count($message->getTo());
-    } else {
-      $getTo = 0;
-    }
+    {
+        if ($message->getTo()) {
+            $getTo = count($message->getTo());
+        } else {
+            $getTo = 0;
+        }
 
-    if ($message->getCc()) {
-      $getCc = count($message->getCc());
-    } else {
-      $getCc = 0;
-    }
+        if ($message->getCc()) {
+            $getCc = count($message->getCc());
+        } else {
+            $getCc = 0;
+        }
 
-    if ($message->getBcc()) {
-      $getBcc = count($message->getBcc());
-    } else {
-      $getBcc = 0;
-    }
+        if ($message->getBcc()) {
+            $getBcc = count($message->getBcc());
+        } else {
+            $getBcc = 0;
+        }
 
-    return $getTo + $getCc + $getBcc + $toBeAdded;
-	}
+        return $getTo + $getCc + $getBcc + $toBeAdded;
+    }
 
     /**
      * Handle bounces & complaints from Amazon.
-     *
-     * @param Request $request
      *
      * @return array
      */
@@ -755,11 +738,11 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
             throw new HttpException(400, "Key 'Type' not found in payload ");
         }
 
-        if ($payload['Type'] == 'SubscriptionConfirmation') {
+        if ('SubscriptionConfirmation' == $payload['Type']) {
             // Confirm Amazon SNS subscription by calling back the SubscribeURL from the playload
             try {
                 $response = $this->httpClient->get($payload['SubscribeURL']);
-                if ($response->code == 200) {
+                if (200 == $response->code) {
                     $this->logger->info('Callback to SubscribeURL from Amazon SNS successfully');
 
                     return;
@@ -775,11 +758,11 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
             return;
         }
 
-        if ($payload['Type'] == 'Notification') {
+        if ('Notification' == $payload['Type']) {
             $message = json_decode($payload['Message'], true);
 
             // only deal with hard bounces
-            if ($message['notificationType'] == 'Bounce' && $message['bounce']['bounceType'] == 'Permanent') {
+            if ('Bounce' == $message['notificationType'] && 'Permanent' == $message['bounce']['bounceType']) {
                 // Get bounced recipients in an array
                 $bouncedRecipients = $message['bounce']['bouncedRecipients'];
                 foreach ($bouncedRecipients as $bouncedRecipient) {
@@ -791,7 +774,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
             }
 
             // unsubscribe customer that complain about spam at their mail provider
-            if ($message['notificationType'] == 'Complaint') {
+            if ('Complaint' == $message['notificationType']) {
                 foreach ($message['complaint']['complainedRecipients'] as $complainedRecipient) {
                     $reason = null;
                     if (isset($message['complaint']['complaintFeedbackType'])) {
@@ -809,7 +792,7 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
                         }
                     }
 
-                    if ($reason == null) {
+                    if (null == $reason) {
                         $reason = $this->translator->trans('mautic.email.complaint.reason.unknown');
                     }
 
@@ -822,8 +805,6 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
     }
 
     /**
-     * @param Message $message
-     *
      * @throws BounceNotFound
      */
     public function processBounce(Message $message)
@@ -849,8 +830,6 @@ class AmazonApiTransport extends AbstractTokenArrayTransport implements \Swift_T
     }
 
     /**
-     * @param Message $message
-     *
      * @return UnsubscribedEmail
      *
      * @throws UnsubscriptionNotFound
